@@ -23,4 +23,4 @@ const sendEmail = async(email, subject, text) => {
     }
 }
 
-module.exports.sendEmail = sendEmail
+module.exports = sendEmail
