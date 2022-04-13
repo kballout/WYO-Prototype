@@ -10,7 +10,7 @@ const tokenSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    expires:{
+    expiresAt:{
         type: Date,
         default: Date.now,
         index: {
