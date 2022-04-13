@@ -3,12 +3,14 @@ const User = require('../model/User')
 const Provider = require('../model/Provider')
 const Manager = require('../model/Manager')
 const Token = require('../model/Token')
-const {regUserValid, regProviderValid} = require('../validation')
+const {regUserValid, regProviderValid, loginValidation} = require('../validation')
 const crypto = require('crypto')
 const sendEmail = require('../email')
+const bcrypt = require('bcryptjs')
 
+//REGISTRATION
 router.post('/register', async (req, res) => {
-    //if the sign up is a user
+    //USER SIGN UP
     if(req.body.type === 'User'){
         //check if email already exists
         const emailExists = await User.findOne({email:req.body.email})
@@ -17,12 +19,18 @@ router.post('/register', async (req, res) => {
         //validation
         const {error} = regUserValid.validate(req.body)
         if(error) return res.status(400).send(error.details[0].message)
+
+        //hash password
+        const salt = await bcrypt.genSalt(10)
+        const hashedPass = await bcrypt.hash(req.body.password, salt)
+
+        //create new user
         const user = new User({
             email: req.body.email,
             name: req.body.name,
             dateOfBirth: req.body.dateOfBirth,
             phoneNumber: req.body.phoneNumber,
-            password: req.body.password,
+            password: hashedPass,
             address: req.body.address,
             city: req.body.city,
             zipCode: req.body.zipCode,
@@ -53,7 +61,7 @@ router.post('/register', async (req, res) => {
         res.send('email sent for verification')
     }
 
-    //if the sign up is a provider
+    //PROVIDER SIGN UP
     else if(req.body.type === 'Provider'){
         //check if email already exists
         const emailExists = await Provider.findOne({email:req.body.email})
@@ -62,12 +70,18 @@ router.post('/register', async (req, res) => {
         //validation
         const {error} = regProviderValid.validate(req.body)
         if(error) return res.status(400).send(error.details[0].message)
+
+        //hash password
+        const salt = await bcrypt.genSalt(10)
+        const hashedPass = await bcrypt.hash(req.body.password, salt)
+
+        //create new provider
         const user = new Provider({
             email: req.body.email,
             name: req.body.name,
             dateOfBirth: req.body.dateOfBirth,
             phoneNumber: req.body.phoneNumber,
-            password: req.body.password,
+            password: hashedPass,
             address: req.body.address,
             biography: req.body.biography,
             city: req.body.city,
@@ -98,11 +112,16 @@ router.post('/register', async (req, res) => {
         await sendEmail(user.email, "WYO Email Verification", message)
         res.send('email sent for verification')
     }
-    //if the user is a manager
+
+    //MANAGER SIGN UP
     else{
+        //hash password
+        const salt = await bcrypt.genSalt(10)
+        const hashedPass = await bcrypt.hash(req.body.password, salt)
+
         const user = new Manager({
             username: req.body.username,
-            password: req.body.password,
+            password: hashedPass,
         })
 
         //save in db
@@ -115,7 +134,7 @@ router.post('/register', async (req, res) => {
 })
 
 
-//email verification route
+//EMAIL VERIFICATION
 router.get('/verify/:id/:token', async(req, res) => {
     const user = await User.findOne({_id: req.params.id})
     if(!user) return res.status(400).send('invalid link')

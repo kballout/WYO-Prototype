@@ -40,8 +40,6 @@ const regUserValid = Joi.object({
 const regProviderValid = Joi.object({
     type: Joi.string()
         .default('User'),
-    employeeID: Joi.string()
-        .default('-1'),
     biography: Joi.string()
         .max(3000)
         .required(),
@@ -76,5 +74,18 @@ const regProviderValid = Joi.object({
 
 });
 
+//Login Validation
+const loginValidation = Joi.object({
+    email: Joi.string()
+        .max(255)
+        .min(6)
+        .required()
+        .email(),
+    password: Joi.string()
+        .min(6)
+        .required()
+})
+
 module.exports.regUserValid = regUserValid
 module.exports.regProviderValid = regProviderValid
+module.exports.loginValidation = loginValidation
