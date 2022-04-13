@@ -45,10 +45,6 @@ const regProviderValid = Joi.object({
     biography: Joi.string()
         .max(3000)
         .required(),
-    pictureURL: Joi.string()
-        .max(1024)
-        .uri()
-        .required(),
     email: Joi.string()
         .max(255)
         .min(6)

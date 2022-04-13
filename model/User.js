@@ -49,20 +49,22 @@ const userSchema = new mongoose.Schema({
         minlength: 5,
         maxlength: 5
     },
-    currentJobID:{
-        type: String,
-        default: '-1'
-    },
-    jobList:{
+    currentJobs:{
         type: Array,
         default: []
+    },
+    jobHistory:{
+        type: Array,
+        default: []
+    },
+    verificationStatus:{
+        type: Boolean,
+        default: false
     },
     dateCreated:{
         type: Date,
         default: Date.now
     }
 })
-
-//WYOSchema
 
 module.exports = mongoose.model('User', userSchema)
