@@ -149,7 +149,38 @@ router.post('/login', async (req,res) => {
 
     //checking if verified
     if(user.verificationStatus === false){
-        return res.send("You must verify your email before you can login")
+        const oldToken = await Token.findOne({_userId: user._id})
+        //if old token doesnt exists make a new one
+        if(!oldToken){
+            const token = new Token({
+                _userId: user._id,
+                token: crypto.randomBytes(16).toString('hex')
+            })
+            //save token
+            try {
+                await token.save()
+            }catch(err){
+                res.status(500).send(err)
+            }
+            //resend verification email
+            const message = `Hello ${req.body.name}, please verify your email by clicking on the following link: ${process.env.URL}/user/verify/${user._id}/${token.token}`
+            await sendEmail(user.email, "WYO Email Verification", message)
+            return res.send("You must verify your email before you can login. A new verification email was sent")
+        }
+        //if old token exists update it with a new token
+        else{
+            let id = oldToken._userId
+            const token = crypto.randomBytes(16).toString('hex')
+            await Token.updateOne({
+                _userId: user.id,
+                token: token
+            })
+            //resend verification email
+            const message = `Hello ${req.body.name}, please verify your email by clicking on the following link: ${process.env.URL}/user/verify/${user._id}/${token}`
+            await sendEmail(user.email, "WYO Email Verification", message)
+            return res.send("You must verify your email before you can login. A new verification email was sent")
+        }
+        
     }
 
     res.send("Login successful!")
@@ -171,5 +202,6 @@ router.get('/verify/:id/:token', async(req, res) => {
 
     res.send('email has been verified!')
 })
+
 
 module.exports = router;
