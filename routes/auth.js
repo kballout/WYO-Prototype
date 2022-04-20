@@ -133,6 +133,27 @@ router.post('/register', async (req, res) => {
     }
 })
 
+//LOGIN
+router.post('/login', async (req,res) => {
+    //validation
+    const {error} = loginValidation.validate(req.body)
+    if(error) return res.status(400).send(error.details[0].message)
+
+    //check if user exists
+    const user = await User.findOne({email: req.body.email})
+    if(!user) return res.status(400).send("Email or password is incorrect")
+
+    //checking password
+    const validPassword = await bcrypt.compare(req.body.password, user.password)
+    if(!validPassword) return res.status(400).send("Email or password is incorrect")
+
+    //checking if verified
+    if(user.verificationStatus === false){
+        return res.send("You must verify your email before you can login")
+    }
+
+    res.send("Login successful!")
+})
 
 //EMAIL VERIFICATION
 router.get('/verify/:id/:token', async(req, res) => {
