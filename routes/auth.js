@@ -3,13 +3,13 @@ const User = require('../model/User')
 const Provider = require('../model/Provider')
 const Manager = require('../model/Manager')
 const Token = require('../model/Token')
+const RefreshToken = require('../model/RefreshToken')
 const {regUserValid, regProviderValid, loginValidation} = require('../validation')
 const crypto = require('crypto')
 const sendEmail = require('../email')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const {generateAccessToken} = require('./webTokens')
-const RefreshToken = require('../model/RefreshToken')
 
 //REGISTRATION
 router.post('/register', async (req, res) => {
@@ -137,7 +137,7 @@ router.post('/register', async (req, res) => {
 })
 
 //LOGIN
-router.post('/login', async (req,res) => {
+router.post('/login', async (req, res) => {
     //validation
     const {error} = loginValidation.validate(req.body)
     if(error) return res.status(400).send(error.details[0].message)
@@ -203,6 +203,14 @@ router.post('/login', async (req,res) => {
     res.json({accessToken: accessToken, refreshToken: refreshToken})
 })
 
+//LOGOUT
+router.delete('/logout', async (req, res) => {
+    const token = await RefreshToken.findOne({token: req.body.token})
+    if(!token) return res.status('404').send('You are not logged in')
+    await RefreshToken.findByIdAndRemove(token._id)
+    res.status(200).send('logout successful')
+    
+})
 
 //GET ANOTHER TOKEN
 router.post('/token', async (req, res) => {
