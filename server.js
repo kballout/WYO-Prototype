@@ -6,11 +6,13 @@ const mongoose = require('mongoose')
 
 //Import Routes
 const authRoute = require('./routes/auth');
+const dashboardRoutes = require('./routes/dashboardRoutes')
 
 
 //Route Middlewares
 app.use(express.json())
 app.use('/api/user', authRoute);
+app.use('/api/posts', dashboardRoutes);
 
 app.listen(3000, () => console.log('Server UP and running'));
 

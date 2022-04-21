@@ -7,6 +7,9 @@ const {regUserValid, regProviderValid, loginValidation} = require('../validation
 const crypto = require('crypto')
 const sendEmail = require('../email')
 const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
+const {generateAccessToken} = require('./webTokens')
+const RefreshToken = require('../model/RefreshToken')
 
 //REGISTRATION
 router.post('/register', async (req, res) => {
@@ -183,7 +186,37 @@ router.post('/login', async (req,res) => {
         
     }
 
-    res.send("Login successful!")
+    //create access and refresh token for successful login
+    const accessToken = generateAccessToken({user: user._id})
+    const refreshToken = jwt.sign({id: user._id}, process.env.REFRESH_TOKEN)    
+
+    //save refresh token in db
+    const token = new RefreshToken({
+        token: refreshToken 
+    })
+    try {
+        await token.save()
+    }catch(err){
+        res.status(500).send(err)
+    }
+
+    res.json({accessToken: accessToken, refreshToken: refreshToken})
+})
+
+
+//GET ANOTHER TOKEN
+router.post('/token', async (req, res) => {
+    const refreshToken = req.body.token
+    if (refreshToken == null) return res.status('401').send('No refresh token found')
+
+    const foundToken = await RefreshToken.findOne({token: refreshToken})
+    if(!foundToken) return res.status('403').send('Invalid token must log back in')
+
+    jwt.verify(refreshToken, process.env.REFRESH_TOKEN, (err, user) => {
+        if(err) return res.status(403).send('Authentication failure')
+        const accessToken = generateAccessToken({user: user._id})
+        res.send('new token is: ' + accessToken)
+    })
 })
 
 //EMAIL VERIFICATION
