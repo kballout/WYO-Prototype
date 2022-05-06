@@ -3,18 +3,19 @@ const app = express();
 const dotenv = require('dotenv')
 dotenv.config()
 const mongoose = require('mongoose')
+const passport = require('passport')
 
 //Import Routes
-const authRoute = require('./routes/auth');
+const authRoute = require('./routes/auth')
 const dashboardRoutes = require('./routes/dashboardRoutes')
 
 
 //Route Middlewares
 app.use(express.json())
-app.use('/api/user', authRoute);
-app.use('/api/posts', dashboardRoutes);
+app.use('/api/user', authRoute)
+app.use(passport.initialize())
+app.use('/api/dashboard', dashboardRoutes)
 
-app.listen(3000, () => console.log('Server UP and running'));
 
 
 //connect db

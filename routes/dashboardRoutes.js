@@ -1,12 +1,14 @@
 const router = require('express').Router()
-const {authenticateToken} = require('./webTokens')
-const User = require('../model/User')
+const passport  = require('passport')
+require('../config/passport')
 
 
-router.get('/', authenticateToken, (req,res) => {
+router.get('/', passport.authenticate('jwt', {session: false}), (req,res) => {
     res.json({
         title: 'my first post',
-        id: req.user
+        id: req.user._id,
+        name: req.user.name,
+        role: req.user.type
     })
 })
 

@@ -4,7 +4,7 @@ const tokenSchema = new mongoose.Schema({
     _userId:{
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        ref: 'Users'
+        ref: 'User'
     },
     token:{
         type: String,
@@ -19,4 +19,4 @@ const tokenSchema = new mongoose.Schema({
     }
 })
 
-module.exports = mongoose.model('Token', tokenSchema)
+module.exports = mongoose.model('EmailToken', tokenSchema)

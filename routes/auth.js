@@ -2,17 +2,17 @@ const router = require('express').Router()
 const User = require('../model/User')
 const Provider = require('../model/Provider')
 const Manager = require('../model/Manager')
-const Token = require('../model/Token')
+const EmailToken = require('../model/EmailToken')
 const RefreshToken = require('../model/RefreshToken')
 const {regUserValid, regProviderValid, loginValidation} = require('../validation')
 const crypto = require('crypto')
 const sendEmail = require('../email')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
-const {generateAccessToken} = require('./webTokens')
 
 //REGISTRATION
 router.post('/register', async (req, res) => {
+    console.log(req.body)
     //USER SIGN UP
     if(req.body.type === 'User'){
         //check if email already exists
@@ -20,7 +20,9 @@ router.post('/register', async (req, res) => {
         if (emailExists) return res.status(400).send('Email already in use')
 
         //validation
-        const {error} = regUserValid.validate(req.body)
+        const data = req.body
+        data.dateOfBirth = new Date(req.body.dateOfBirth)
+        const {error} = regUserValid.validate(data)
         if(error) return res.status(400).send(error.details[0].message)
 
         //hash password
@@ -47,7 +49,7 @@ router.post('/register', async (req, res) => {
         }
 
         //generate token for email validation
-        const token = new Token({
+        const token = new EmailToken({
             _userId: user._id,
             token: crypto.randomBytes(16).toString('hex')
         })
@@ -99,7 +101,7 @@ router.post('/register', async (req, res) => {
         }
 
         //generate token for email validation
-        const token = new Token({
+        const token = new EmailToken({
             _userId: user._id,
             token: crypto.randomBytes(16).toString('hex')
         })
@@ -117,7 +119,7 @@ router.post('/register', async (req, res) => {
     }
 
     //MANAGER SIGN UP
-    else{
+    else if (req.body.type === 'Manager'){
         //hash password
         const salt = await bcrypt.genSalt(10)
         const hashedPass = await bcrypt.hash(req.body.password, salt)
@@ -152,10 +154,10 @@ router.post('/login', async (req, res) => {
 
     //checking if verified
     if(user.verificationStatus === false){
-        const oldToken = await Token.findOne({_userId: user._id})
+        const oldToken = await EmailToken.findOne({_userId: user._id})
         //if old token doesnt exists make a new one
         if(!oldToken){
-            const token = new Token({
+            const token = new EmailToken({
                 _userId: user._id,
                 token: crypto.randomBytes(16).toString('hex')
             })
@@ -170,14 +172,15 @@ router.post('/login', async (req, res) => {
             await sendEmail(user.email, "WYO Email Verification", message)
             return res.send("You must verify your email before you can login. A new verification email was sent")
         }
+        //CHANGE THIS TO WHEN A USER REQUESTS A NEW EMAIL TO BE SENT
         //if old token exists update it with a new token
         else{
             let id = oldToken._userId
             const token = crypto.randomBytes(16).toString('hex')
-            await Token.updateOne({
-                _userId: user.id,
-                token: token
-            })
+            await EmailToken.updateOne(
+                {_userId: user._id},
+                {token: token}
+                )
             //resend verification email
             const message = `Hello ${req.body.name}, please verify your email by clicking on the following link: ${process.env.URL}/user/verify/${user._id}/${token}`
             await sendEmail(user.email, "WYO Email Verification", message)
@@ -187,11 +190,22 @@ router.post('/login', async (req, res) => {
     }
 
     //create access and refresh token for successful login
-    const accessToken = generateAccessToken({user: user._id})
-    const refreshToken = jwt.sign({id: user._id}, process.env.REFRESH_TOKEN)    
+    const accessToken = jwt.sign({
+        _id: user._id,
+        role: user.type,
+        name: user.name
+    }, process.env.ACCESS_TOKEN, {
+        expiresIn: process.env.ACCESS_TOKEN_EXP
+    })
+
+    //if a refresh token already exists for the user remove it before creating a new one
+    await RefreshToken.findByIdAndRemove({_id: user._id})
+
+    const refreshToken = jwt.sign({_id: user._id}, process.env.REFRESH_TOKEN, {expiresIn: process.env.REFRESH_TOKEN_EXP})    
 
     //save refresh token in db
     const token = new RefreshToken({
+        _id: user._id,
         token: refreshToken 
     })
     try {
@@ -222,7 +236,13 @@ router.post('/token', async (req, res) => {
 
     jwt.verify(refreshToken, process.env.REFRESH_TOKEN, (err, user) => {
         if(err) return res.status(403).send('Authentication failure')
-        const accessToken = generateAccessToken({user: user._id})
+        const accessToken = jwt.sign({
+        _id: user._id,
+        role: user.type,
+        name: user.name
+    }, process.env.ACCESS_TOKEN, {
+        expiresIn: process.env.ACCESS_TOKEN_EXP
+    })
         res.send('new token is: ' + accessToken)
     })
 })
@@ -232,14 +252,12 @@ router.get('/verify/:id/:token', async(req, res) => {
     const user = await User.findOne({_id: req.params.id})
     if(!user) return res.status(400).send('invalid link')
 
-    const token = await Token.findOne({_userId: user._id, token: req.params.token})
+    const token = await EmailToken.findOne({_userId: user._id, token: req.params.token})
     if(!token) return res.status(400).send('invalid link')
 
-    await User.updateOne({
-        _id: user.id,
-        verificationStatus: true
-    })
-    await Token.findByIdAndRemove(token.id)
+    await User.updateOne({_id: user.id},
+        {verificationStatus: true})
+    await EmailToken.findByIdAndRemove(token.id)
 
     res.send('email has been verified!')
 })
