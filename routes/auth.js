@@ -6,9 +6,11 @@ const EmailToken = require('../model/EmailToken')
 const RefreshToken = require('../model/RefreshToken')
 const {regUserValid, regProviderValid, loginValidation} = require('../validation')
 const crypto = require('crypto')
+const { nanoid } = require('nanoid')
 const sendEmail = require('../email')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const generateTokens = require('../generateTokens')
 
 //REGISTRATION
 router.post('/register', async (req, res) => {
@@ -51,7 +53,7 @@ router.post('/register', async (req, res) => {
         //generate token for email validation
         const token = new EmailToken({
             _userId: user._id,
-            token: crypto.randomBytes(16).toString('hex')
+            token: nanoid(10)
         })
         //save token
         try {
@@ -63,7 +65,15 @@ router.post('/register', async (req, res) => {
         //send email
         const message = `Hello ${req.body.name}, please verify your email by clicking on the following link: ${process.env.URL}/user/verify/${user._id}/${token.token}`
         await sendEmail(user.email, "WYO Email Verification", message)
-        res.send('email sent for verification')
+
+        //generate access and refresh tokens and send to the user
+        const tokens = await generateTokens(user)
+        if(!tokens === {}){
+            return res.status(200).json({accessToken: tokens.accessToken, refreshToken: tokens.refreshToken})
+        }
+        else{
+           return res.status(500).send('Something went wrong')
+        }
     }
 
     //PROVIDER SIGN UP
@@ -103,7 +113,7 @@ router.post('/register', async (req, res) => {
         //generate token for email validation
         const token = new EmailToken({
             _userId: user._id,
-            token: crypto.randomBytes(16).toString('hex')
+            token: nanoid(10)
         })
         //save token
         try {
@@ -115,7 +125,16 @@ router.post('/register', async (req, res) => {
         //send email
         const message = `Hello ${req.body.name}, please verify your email by clicking on the following link: ${process.env.URL}/user/verify/${user._id}/${token.token}`
         await sendEmail(user.email, "WYO Email Verification", message)
-        res.send('email sent for verification')
+
+        //generate access and refresh tokens and send to the user
+        const tokens = await generateTokens(user)
+        if(!tokens === {}){
+           return res.status(200).json({accessToken: tokens.accessToken, refreshToken: tokens.refreshToken})
+        }
+        else{
+           return res.status(500).send('Something went wrong')
+        }
+        
     }
 
     //MANAGER SIGN UP
@@ -143,14 +162,30 @@ router.post('/login', async (req, res) => {
     //validation
     const {error} = loginValidation.validate(req.body)
     if(error) return res.status(400).send(error.details[0].message)
-
+    
     //check if user exists
     const user = await User.findOne({email: req.body.email})
     if(!user) return res.status(400).send("Email or password is incorrect")
-
+    
     //checking password
     const validPassword = await bcrypt.compare(req.body.password, user.password)
     if(!validPassword) return res.status(400).send("Email or password is incorrect")
+    
+    //generate access and refresh tokens and send to the user
+    const tokens = await generateTokens(user)
+    if(tokens !== {}){
+        return res.status(200).json({accessToken: tokens.accessToken, refreshToken: tokens.refreshToken})
+    }
+    else{
+       return res.status(500).send('Something went wrong')
+    }
+})
+
+//RESEND EMAIL VERIFICATION CODE
+router.post('/resendverification/:id', async (req, res) => {
+
+    const user = await User.findOne({_id: req.params.id})
+    if(!user) return res.status(400).send('Cannot find user!')
 
     //checking if verified
     if(user.verificationStatus === false){
@@ -159,7 +194,7 @@ router.post('/login', async (req, res) => {
         if(!oldToken){
             const token = new EmailToken({
                 _userId: user._id,
-                token: crypto.randomBytes(16).toString('hex')
+                token: nanoid(10)
             })
             //save token
             try {
@@ -170,13 +205,10 @@ router.post('/login', async (req, res) => {
             //resend verification email
             const message = `Hello ${req.body.name}, please verify your email by clicking on the following link: ${process.env.URL}/user/verify/${user._id}/${token.token}`
             await sendEmail(user.email, "WYO Email Verification", message)
-            return res.send("You must verify your email before you can login. A new verification email was sent")
         }
-        //CHANGE THIS TO WHEN A USER REQUESTS A NEW EMAIL TO BE SENT
         //if old token exists update it with a new token
         else{
-            let id = oldToken._userId
-            const token = crypto.randomBytes(16).toString('hex')
+            const token = nanoid(10)
             await EmailToken.updateOne(
                 {_userId: user._id},
                 {token: token}
@@ -184,46 +216,13 @@ router.post('/login', async (req, res) => {
             //resend verification email
             const message = `Hello ${req.body.name}, please verify your email by clicking on the following link: ${process.env.URL}/user/verify/${user._id}/${token}`
             await sendEmail(user.email, "WYO Email Verification", message)
-            return res.send("You must verify your email before you can login. A new verification email was sent")
+            
         }
-        
+        return res.send('email sent for verification')
     }
-
-    //create access and refresh token for successful login
-    const accessToken = jwt.sign({
-        _id: user._id,
-        role: user.type,
-        name: user.name
-    }, process.env.ACCESS_TOKEN, {
-        expiresIn: process.env.ACCESS_TOKEN_EXP
-    })
-
-    //if a refresh token already exists for the user remove it before creating a new one
-    await RefreshToken.findByIdAndRemove({_id: user._id})
-
-    const refreshToken = jwt.sign({_id: user._id}, process.env.REFRESH_TOKEN, {expiresIn: process.env.REFRESH_TOKEN_EXP})    
-
-    //save refresh token in db
-    const token = new RefreshToken({
-        _id: user._id,
-        token: refreshToken 
-    })
-    try {
-        await token.save()
-    }catch(err){
-        res.status(500).send(err)
+    else{
+        return res.send('User is already verified')
     }
-
-    res.json({accessToken: accessToken, refreshToken: refreshToken})
-})
-
-//LOGOUT
-router.delete('/logout', async (req, res) => {
-    const token = await RefreshToken.findOne({token: req.body.token})
-    if(!token) return res.status('404').send('You are not logged in')
-    await RefreshToken.findByIdAndRemove(token._id)
-    res.status(200).send('logout successful')
-    
 })
 
 //GET ANOTHER TOKEN
@@ -234,25 +233,27 @@ router.post('/token', async (req, res) => {
     const foundToken = await RefreshToken.findOne({token: refreshToken})
     if(!foundToken) return res.status('403').send('Invalid token must log back in')
 
-    jwt.verify(refreshToken, process.env.REFRESH_TOKEN, (err, user) => {
+    jwt.verify(refreshToken, process.env.REFRESH_TOKEN, async (err, user) => {
         if(err) return res.status(403).send('Authentication failure')
+        let info = await User.findOne({_id: user._id})
         const accessToken = jwt.sign({
-        _id: user._id,
-        role: user.type,
-        name: user.name
+        _id: info._id,
+        role: info.type,
+        name: info.name,
+        verified: info.verificationStatus
     }, process.env.ACCESS_TOKEN, {
         expiresIn: process.env.ACCESS_TOKEN_EXP
     })
-        res.send('new token is: ' + accessToken)
+        res.send(accessToken)
     })
 })
 
 //EMAIL VERIFICATION
-router.get('/verify/:id/:token', async(req, res) => {
+router.get('/verify/:id', async(req, res) => {
     const user = await User.findOne({_id: req.params.id})
-    if(!user) return res.status(400).send('invalid link')
+    if(!user) return res.status(400).send('invalid user')
 
-    const token = await EmailToken.findOne({_userId: user._id, token: req.params.token})
+    const token = await EmailToken.findOne({_userId: user._id, token: req.body.token})
     if(!token) return res.status(400).send('invalid link')
 
     await User.updateOne({_id: user.id},
@@ -262,5 +263,12 @@ router.get('/verify/:id/:token', async(req, res) => {
     res.send('email has been verified!')
 })
 
+//LOGOUT
+router.delete('/logout', async (req, res) => {
+    const token = await RefreshToken.findOne({token: req.body.token})
+    if(!token) return res.status('404').send('You are not logged in')
+    await RefreshToken.findByIdAndRemove(token._id)
+    res.status(200).send('logout successful')
+})
 
 module.exports = router;
