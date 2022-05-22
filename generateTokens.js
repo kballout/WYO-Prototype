@@ -1,19 +1,18 @@
 const RefreshToken = require('./model/RefreshToken')
 const jwt = require('jsonwebtoken')
 
-const generateTokens = async(user) => {
-    
-    const tokens = {}
+const generateAccessToken = (user) => {
     //create access and refresh token for successful login
     const accessToken = jwt.sign({
         _id: user._id,
-        role: user.type,
-        name: user.name,
-        verified: user.verificationStatus
     }, process.env.ACCESS_TOKEN, {
         expiresIn: process.env.ACCESS_TOKEN_EXP
     })
 
+    return accessToken
+}
+
+const generateRefreshToken = async(user) => {
     //if a refresh token already exists for the user remove it before creating a new one
     await RefreshToken.findByIdAndRemove({_id: user._id})
     
@@ -29,11 +28,9 @@ const generateTokens = async(user) => {
     }catch(err){
         return err
     }
-    
-    tokens.accessToken = accessToken
-    tokens.refreshToken = refreshToken
-    
-    return tokens
+
+    return refreshToken
 }
 
-module.exports = generateTokens
+module.exports.generateAccessToken = generateAccessToken
+module.exports.generateRefreshToken = generateRefreshToken

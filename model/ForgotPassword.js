@@ -13,8 +13,8 @@ const tokenSchema = new mongoose.Schema({
     expiresAt:{
         type: Date,
         default: Date.now,
-        expires: 86400
+        expires: 3600
     }
 })
 
-module.exports = mongoose.model('EmailToken', tokenSchema)
+module.exports = mongoose.model('ForgotPassword', tokenSchema)
