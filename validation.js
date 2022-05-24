@@ -10,7 +10,10 @@ const regUserValid = Joi.object({
             .min(6)
             .required()
             .email(),
-        name: Joi.string()
+        firstName: Joi.string()
+            .max(255)
+            .required(),
+        lastName: Joi.string()
             .max(255)
             .required(),
         dateOfBirth: Joi.date()
@@ -20,9 +23,12 @@ const regUserValid = Joi.object({
             .max(10)
             .required(),
         password: Joi.string()
-            .min(6)
+            .min(8)
             .max(1024)
             .required(),
+        confirmPassword: Joi.string()
+            .min(8)
+            .max(1024),
         address: Joi.string()
             .max(50)
             .required(),

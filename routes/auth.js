@@ -15,15 +15,12 @@ const { nanoid } = require("nanoid");
 const sendEmail = require("../email");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const {
-  generateAccessToken,
-  generateRefreshToken,
-} = require("../generateTokens");
+const { generateAccessToken, generateRefreshToken, } = require("../generateTokens");
 const passport = require("passport");
 
 //REGISTRATION
 router.post("/register", async (req, res) => {
-  console.log(req.body);
+
   //USER SIGN UP
   if (req.body.type === "User") {
     //check if email already exists
@@ -40,12 +37,16 @@ router.post("/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPass = await bcrypt.hash(req.body.password, salt);
 
+    //capitalize name
+    let name = req.body.firstName.charAt(0).toUpperCase() + req.body.firstName.slice(1) + ' ' 
+    + req.body.lastName.charAt(0).toUpperCase() + req.body.lastName.slice(1);
+    
     //create new user
     const user = new User({
       email: req.body.email,
-      name: req.body.name,
+      name: name,
       dateOfBirth: req.body.dateOfBirth,
-      phoneNumber: req.body.phoneNumber,
+      phoneNumber: formatPhoneNumber(req.body.phoneNumber),
       password: hashedPass,
       address: req.body.address,
       city: req.body.city,
@@ -56,6 +57,7 @@ router.post("/register", async (req, res) => {
     try {
       await user.save();
     } catch (err) {
+      console.log(err);
       res.status(500).send(err);
     }
 
@@ -86,7 +88,7 @@ router.post("/register", async (req, res) => {
         user: {
           name: user.name,
           role: user.type,
-          verified: user.verificationStatus,
+          verified: false,
         },
       });
     } else {
@@ -108,12 +110,16 @@ router.post("/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPass = await bcrypt.hash(req.body.password, salt);
 
+    //capitalize name
+    let name = req.body.firstName.charAt(0).toUpperCase() + req.body.firstName.slice(1) + ' ' 
+    + req.body.lastName.charAt(0).toUpperCase() + req.body.firstName.slice(1);
+
     //create new provider
     const user = new Provider({
       email: req.body.email,
-      name: req.body.name,
+      name: name,
       dateOfBirth: req.body.dateOfBirth,
-      phoneNumber: req.body.phoneNumber,
+      phoneNumber: formatPhoneNumber(req.body.phoneNumber),
       password: hashedPass,
       address: req.body.address,
       biography: req.body.biography,
@@ -155,7 +161,7 @@ router.post("/register", async (req, res) => {
         user: {
           name: user.name,
           role: user.type,
-          verified: user.verificationStatus,
+          verified: false,
         },
       });
     }
@@ -408,11 +414,24 @@ router.post("/resetPassword", async (req, res) => {
 });
 
 //LOGOUT
-router.delete("/logout", async (req, res) => {
+router.post("/logout", async (req, res) => {
   const token = await RefreshToken.findOne({ token: req.body.token });
   if (!token) return res.status("404").send("You are not logged in");
   await RefreshToken.findByIdAndRemove(token._id);
   res.status(200).send("logout successful");
 });
+
+
+
+
+
+
+//OTHER FUNCTIONS
+function formatPhoneNumber(number) {
+    //remove dashes and spaces
+    let newNumber = number.replaceAll('-', ' ')
+    newNumber = newNumber.replaceAll(' ', '')
+    return newNumber
+}
 
 module.exports = router;
