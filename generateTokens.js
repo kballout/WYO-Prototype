@@ -5,6 +5,7 @@ const generateAccessToken = (user) => {
     //create access and refresh token for successful login
     const accessToken = jwt.sign({
         _id: user._id,
+        type: user.type
     }, process.env.ACCESS_TOKEN, {
         expiresIn: process.env.ACCESS_TOKEN_EXP
     })
@@ -16,7 +17,7 @@ const generateRefreshToken = async(user) => {
     //if a refresh token already exists for the user remove it before creating a new one
     await RefreshToken.findByIdAndRemove({_id: user._id})
     
-    const refreshToken = jwt.sign({_id: user._id}, process.env.REFRESH_TOKEN, {expiresIn: process.env.REFRESH_TOKEN_EXP})    
+    const refreshToken = jwt.sign({_id: user._id, type: user.type}, process.env.REFRESH_TOKEN, {expiresIn: process.env.REFRESH_TOKEN_EXP})    
     
     //save refresh token in db
     const token = new RefreshToken({

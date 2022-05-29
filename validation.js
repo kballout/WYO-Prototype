@@ -45,7 +45,7 @@ const regUserValid = Joi.object({
 //Register Provider Validation
 const regProviderValid = Joi.object({
     type: Joi.string()
-        .default('User'),
+        .default('Provider'),
     biography: Joi.string()
         .max(3000)
         .required(),
@@ -54,7 +54,10 @@ const regProviderValid = Joi.object({
         .min(6)
         .required()
         .email(),
-    name: Joi.string()
+    firstName: Joi.string()
+        .max(255)
+        .required(),
+    lastName: Joi.string()
         .max(255)
         .required(),
     dateOfBirth: Joi.date()
@@ -67,6 +70,9 @@ const regProviderValid = Joi.object({
         .min(6)
         .max(1024)
         .required(),
+    confirmPassword: Joi.string()
+        .min(8)
+        .max(1024),
     address: Joi.string()
         .max(50)
         .required(),

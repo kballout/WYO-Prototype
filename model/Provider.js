@@ -49,7 +49,6 @@ const userSchema = new mongoose.Schema({
     },
     pictureURL:{
         type: String,
-        required: true,
         maxlength: 1024,
     },
     city:{
@@ -72,6 +71,10 @@ const userSchema = new mongoose.Schema({
         default: []
     },
     verificationStatus:{
+        type: Boolean,
+        default: false
+    },
+    backgroundCheckStatus:{
         type: Boolean,
         default: false
     },

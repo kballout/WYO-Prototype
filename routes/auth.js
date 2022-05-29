@@ -23,13 +23,17 @@ router.post("/register", async (req, res) => {
 
   //USER SIGN UP
   if (req.body.type === "User") {
-    //check if email already exists
-    const emailExists = await User.findOne({ email: req.body.email });
+    //check if email already exists in user db
+    let emailExists = await User.findOne({ email: req.body.email });
+    if (emailExists) return res.status(400).send("Email already in use");
+    //check if email exists in provider db
+    emailExists = await Provider.findOne({ email: req.body.email });
     if (emailExists) return res.status(400).send("Email already in use");
 
     //validation
     const data = req.body;
     data.dateOfBirth = new Date(req.body.dateOfBirth);
+    data.phoneNumber = formatPhoneNumber(data.phoneNumber);
     const { error } = regUserValid.validate(data);
     if (error) return res.status(400).send(error.details[0].message);
 
@@ -38,19 +42,19 @@ router.post("/register", async (req, res) => {
     const hashedPass = await bcrypt.hash(req.body.password, salt);
 
     //capitalize name
-    let name = req.body.firstName.charAt(0).toUpperCase() + req.body.firstName.slice(1) + ' ' 
-    + req.body.lastName.charAt(0).toUpperCase() + req.body.lastName.slice(1);
+    let name = data.firstName.charAt(0).toUpperCase() + data.firstName.slice(1) + ' ' 
+    + data.lastName.charAt(0).toUpperCase() + data.lastName.slice(1);
     
     //create new user
     const user = new User({
-      email: req.body.email,
+      email: data.email,
       name: name,
-      dateOfBirth: req.body.dateOfBirth,
-      phoneNumber: formatPhoneNumber(req.body.phoneNumber),
+      dateOfBirth: data.dateOfBirth,
+      phoneNumber: data.phoneNumber,
       password: hashedPass,
-      address: req.body.address,
-      city: req.body.city,
-      zipCode: req.body.zipCode,
+      address: data.address,
+      city: data.city,
+      zipCode: data.zipCode,
     });
 
     //save user in db
@@ -74,7 +78,7 @@ router.post("/register", async (req, res) => {
     }
 
     //send email
-    const message = `Hello ${req.body.name}, Your confirmation code is ${token.token}`;
+    const message = `Hello ${user.name}, Your confirmation code is ${token.token}`;
     await sendEmail(user.email, "WYO Email Verification", message);
 
     //generate access and refresh tokens and send to the user
@@ -98,12 +102,18 @@ router.post("/register", async (req, res) => {
 
   //PROVIDER SIGN UP
   else if (req.body.type === "Provider") {
-    //check if email already exists
+    //check if email already exists in user db
     const emailExists = await Provider.findOne({ email: req.body.email });
+    if (emailExists) return res.status(400).send("Email already in use");
+    //check if email exists in provider db
+    emailExists = await Provider.findOne({ email: req.body.email });
     if (emailExists) return res.status(400).send("Email already in use");
 
     //validation
-    const { error } = regProviderValid.validate(req.body);
+    const data = req.body;
+    data.dateOfBirth = new Date(req.body.dateOfBirth);
+    data.phoneNumber = formatPhoneNumber(data.phoneNumber);
+    const { error } = regProviderValid.validate(data);
     if (error) return res.status(400).send(error.details[0].message);
 
     //hash password
@@ -111,20 +121,20 @@ router.post("/register", async (req, res) => {
     const hashedPass = await bcrypt.hash(req.body.password, salt);
 
     //capitalize name
-    let name = req.body.firstName.charAt(0).toUpperCase() + req.body.firstName.slice(1) + ' ' 
-    + req.body.lastName.charAt(0).toUpperCase() + req.body.firstName.slice(1);
+    let name = data.firstName.charAt(0).toUpperCase() + data.firstName.slice(1) + ' ' 
+    + data.lastName.charAt(0).toUpperCase() + data.lastName.slice(1);
 
     //create new provider
     const user = new Provider({
-      email: req.body.email,
+      email: data.email,
       name: name,
-      dateOfBirth: req.body.dateOfBirth,
-      phoneNumber: formatPhoneNumber(req.body.phoneNumber),
+      dateOfBirth: data.dateOfBirth,
+      phoneNumber: data.phoneNumber,
       password: hashedPass,
-      address: req.body.address,
-      biography: req.body.biography,
-      city: req.body.city,
-      zipCode: req.body.zipCode,
+      address: data.address,
+      biography: data.biography,
+      city: data.city,
+      zipCode: data.zipCode,
     });
 
     //save user in db
@@ -147,7 +157,7 @@ router.post("/register", async (req, res) => {
     }
 
     //send email
-    const message = `Hello ${req.body.name}, Your confirmation code is ${token.token}`;
+    const message = `Hello ${user.name}, Your confirmation code is ${token.token}`;
     await sendEmail(user.email, "WYO Email Verification", message);
 
     //generate access and refresh tokens and send to the user
@@ -194,7 +204,13 @@ router.post("/login", async (req, res) => {
   if (error) return res.status(400).send(error.details[0].message);
 
   //check if user exists
-  const user = await User.findOne({ email: req.body.email });
+  let user = await User.findOne({ email: req.body.email });
+  if(!user){
+    user = await Provider.findOne({ email: req.body.email });
+  }
+  if(!user){
+    user = await Manager.findOne({ email: req.body.email });
+  }
   if (!user) return res.status(400).send("Email or password is incorrect");
 
   //checking password
@@ -239,7 +255,7 @@ router.post("/resendverification",passport.authenticate("jwt", { session: false 
 
         //resend verification email
         const message = `Hello ${user.name}, Your confirmation code is ${token.token}`;
-        // await sendEmail(user.email, "WYO Email Verification", message);
+        await sendEmail(user.email, "WYO Email Verification", message);
       }
 
       //if old token exists update it with a new token
@@ -247,56 +263,13 @@ router.post("/resendverification",passport.authenticate("jwt", { session: false 
         const token = nanoid(10);
         await EmailToken.updateOne({ _userId: user._id }, { token: token });
         //resend verification email
-        const message = `Hello ${user.name}, Your confirmation code is ${token.token}`;
-        // await sendEmail(user.email, "WYO Email Verification", message);
+        const message = `Hello ${user.name}, Your confirmation code is ${token}`;
+        await sendEmail(user.email, "WYO Email Verification", message);
       }
       return res.status(200).send("email sent for verification");
     } else {
       return res.send("User is already verified");
     }
-
-    //   const token = req.body.token;
-    //   if (token == null) return res.status("401").send("Invalid token");
-
-    //   jwt.verify(token, process.env.ACCESS_TOKEN, async (err, info) => {
-    //     if (err) return res.status(403).send("Authentication failure");
-
-    //     const user = await User.findOne({ _id: info._id });
-    //     if (!user) return res.status(400).send("Cannot find user!");
-
-    //     //checking if verified
-    //     if (user.verificationStatus === false) {
-    //       const oldToken = await EmailToken.findOne({ _userId: user._id });
-
-    //       //if old token doesnt exists make a new one
-    //       if (!oldToken) {
-    //         const token = new EmailToken({ _userId: user._id, token: nanoid(10) });
-    //         //save token
-    //         try {
-    //           await token.save();
-    //         } catch (err) {
-    //           res.status(500).send(err);
-    //         }
-
-    //         //resend verification email
-    //         const message = `Hello ${user.name}, Your confirmation code is ${token.token}`;
-    //         await sendEmail(user.email, "WYO Email Verification", message);
-    //       }
-
-    //       //if old token exists update it with a new token
-    //       else {
-    //         const token = nanoid(10);
-    //         await EmailToken.updateOne({ _userId: user._id }, { token: token });
-    //         //resend verification email
-    //         const message = `Hello ${user.name}, Your confirmation code is ${token.token}`;
-    //         await sendEmail(user.email, "WYO Email Verification", message);
-    //       }
-    //       return res.status(200).send("email sent for verification");
-    //     }
-    //     else {
-    //       return res.send("User is already verified");
-    //     }
-    //   });
   }
 );
 
@@ -313,11 +286,17 @@ router.post("/token", async (req, res) => {
   let info;
   jwt.verify(refreshToken, process.env.REFRESH_TOKEN, async (err, user) => {
     if (err) return res.status(401).send("Unauthorized");
-    info = await User.findOne({ _id: user._id });
+    if(user.type === 'User'){
+      info = await User.findOne({_id: user._id})
+    }
+    else if(user.type === 'Provider'){
+      info = await Provider.findOne({_id: user._id})
+    }
 
     const accessToken = jwt.sign(
       {
         _id: info._id,
+        type: info.type
       },
       process.env.ACCESS_TOKEN,
       {
@@ -348,7 +327,13 @@ router.post("/verify", passport.authenticate("jwt", { session: false }),async (r
     });
     if (!token) return res.status(400).send("invalid link");
 
-    await User.updateOne({ _id: user.id }, { verificationStatus: true });
+    if(user.type === 'User'){
+      await User.updateOne({ _id: user.id }, { verificationStatus: true });
+    }
+    else if (user.type === 'Provider'){
+      await Provider.updateOne({ _id: user.id }, { verificationStatus: true });
+    }
+
     await EmailToken.findByIdAndRemove(token.id);
 
     res.status(200).send("email has been verified!");
@@ -358,6 +343,12 @@ router.post("/verify", passport.authenticate("jwt", { session: false }),async (r
 //FORGOT PASSWORD
 router.post("/forgotPassword", async (req, res) => {
   const user = await User.findOne({ email: req.body.email });
+  if(!user){
+    user = await Provider.findOne({ email: req.body.email });
+  }
+  if(!user){
+    user = await Manager.findOne({ email: req.body.email });
+  }
   if (!user) return res.status(400).send("invalid user");
 
   //generate random code to be sent to the email of the user for password reset
@@ -383,7 +374,7 @@ router.post("/forgotPassword", async (req, res) => {
     const token = nanoid(10);
     await ForgotPassword.updateOne({ _userId: user._id }, { token: token });
     //send email for password reset
-    const message = `Hello ${user.name}, Your confirmation code to reset your password is ${token.token}`;
+    const message = `Hello ${user.name}, Your confirmation code to reset your password is ${token}`;
     await sendEmail(user.email, "WYO Password Reset", message);
   }
   return res.status(200).send("email sent for password reset");
@@ -392,6 +383,12 @@ router.post("/forgotPassword", async (req, res) => {
 //RESET PASSWORD
 router.post("/resetPassword", async (req, res) => {
   const user = await User.findOne({ email: req.body.email });
+  if(!user){
+    user = await Provider.findOne({ email: req.body.email });
+  }
+  if(!user){
+    user = await Manager.findOne({ email: req.body.email });
+  }
   if (!user) return res.status(400).send("invalid user");
 
   //check if confirmation code is correct
@@ -406,7 +403,15 @@ router.post("/resetPassword", async (req, res) => {
   const hashedPass = await bcrypt.hash(req.body.password, salt);
 
   //set new password
-  await User.updateOne({ _id: user.id }, { password: hashedPass });
+  if(user.type === 'User'){
+    await User.updateOne({ _id: user.id }, { password: hashedPass });
+  }
+  else if(user.type === 'Provider'){
+    await Provider.updateOne({ _id: user.id }, { password: hashedPass });
+  }
+  else{
+    await Manager.updateOne({ _id: user.id }, { password: hashedPass });
+  }
   //remove token from forgot password db
   await ForgotPassword.findByIdAndRemove(token.id);
 
